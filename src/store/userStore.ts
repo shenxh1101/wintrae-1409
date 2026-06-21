@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { UserData, WrongQuestion, PlayRecord, MapType, Difficulty } from '../types'
+import type { UserData, WrongQuestion, PlayRecord, MapType, Difficulty, TaskResult, ClassSession, TeacherClassQuestionRecord, MasteryLevel } from '../types'
 import { checkAchievements, achievements } from '../data/achievements'
 
 interface UserStore extends UserData {
@@ -16,6 +16,16 @@ interface UserStore extends UserData {
   updateBestStreak: (streak: number) => void
   checkNewAchievements: (currentStreak: number) => string[]
   resetData: () => void
+  
+  addTaskResult: (result: TaskResult) => void
+  clearTaskResults: () => void
+  
+  startClassSession: (name: string) => string
+  endCurrentClassSession: () => void
+  addClassQuestionRecord: (sessionId: string, record: TeacherClassQuestionRecord) => void
+  updateClassQuestionRecord: (sessionId: string, questionId: string, patch: Partial<TeacherClassQuestionRecord>) => void
+  removeClassSession: (sessionId: string) => void
+  clearClassSessions: () => void
 }
 
 const initialData: UserData = {
@@ -27,6 +37,9 @@ const initialData: UserData = {
   bestStreak: 0,
   achievements: [],
   playHistory: [],
+  taskResults: [],
+  classSessions: [],
+  currentClassSessionId: null,
 }
 
 export const useUserStore = create<UserStore>()(
@@ -153,7 +166,70 @@ export const useUserStore = create<UserStore>()(
         return newAchievements.map(a => a.id)
       },
       
-      resetData: () => set({ ...initialData, wrongQuestions: [] }),
+      resetData: () => set({ ...initialData, wrongQuestions: [], currentClassSessionId: null }),
+
+      addTaskResult: (result) =>
+        set((state) => ({
+          taskResults: [...state.taskResults, result].slice(-20),
+        })),
+
+      clearTaskResults: () => set({ taskResults: [] }),
+
+      startClassSession: (name) => {
+        const id = `session-${Date.now()}`
+        const session: ClassSession = {
+          id,
+          name,
+          startedAt: Date.now(),
+          records: [],
+        }
+        set((state) => ({
+          classSessions: [...state.classSessions, session].slice(-20),
+          currentClassSessionId: id,
+        }))
+        return id
+      },
+
+      endCurrentClassSession: () =>
+        set((state) => {
+          const sessions = [...state.classSessions]
+          const id = state.currentClassSessionId
+          if (id) {
+            const idx = sessions.findIndex(s => s.id === id)
+            if (idx >= 0 && !sessions[idx].endedAt) {
+              sessions[idx] = { ...sessions[idx], endedAt: Date.now() }
+            }
+          }
+          return { classSessions: sessions, currentClassSessionId: null }
+        }),
+
+      addClassQuestionRecord: (sessionId, record) =>
+        set((state) => ({
+          classSessions: state.classSessions.map(s =>
+            s.id === sessionId ? { ...s, records: [...s.records, record] } : s
+          ),
+        })),
+
+      updateClassQuestionRecord: (sessionId, questionId, patch) =>
+        set((state) => ({
+          classSessions: state.classSessions.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  records: s.records.map(r =>
+                    r.questionId === questionId ? { ...r, ...patch } : r
+                  ),
+                }
+              : s
+          ),
+        })),
+
+      removeClassSession: (sessionId) =>
+        set((state) => ({
+          classSessions: state.classSessions.filter(s => s.id !== sessionId),
+        })),
+
+      clearClassSessions: () => set({ classSessions: [] }),
     }),
     {
       name: 'geography-game-storage',

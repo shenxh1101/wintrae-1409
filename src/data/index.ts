@@ -27,6 +27,21 @@ export function getQuestionsByTypes(types: QuestionType[]): Question[] {
   return allQuestions.filter(q => types.includes(q.type))
 }
 
+export function getQuestionsByMapsAndTypes(
+  mapTypes: MapType[],
+  difficulty: Difficulty,
+  questionTypes?: QuestionType[]
+): Question[] {
+  let questions = allQuestions.filter(q => mapTypes.includes(q.mapType) && q.difficulty === difficulty)
+  if (questionTypes && questionTypes.length > 0) {
+    questions = questions.filter(q => questionTypes.includes(q.type))
+  }
+  if (questions.length === 0) {
+    questions = allQuestions.filter(q => questionTypes?.includes(q.type) ?? true)
+  }
+  return questions
+}
+
 export function getRandomQuestions(
   mapType: MapType,
   difficulty: Difficulty,
@@ -40,6 +55,17 @@ export function getRandomQuestions(
   if (questions.length === 0) {
     questions = allQuestions.filter(q => questionTypes?.includes(q.type) ?? true)
   }
+  const shuffled = [...questions].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, Math.min(count, shuffled.length))
+}
+
+export function getRandomQuestionsMultiMap(
+  mapTypes: MapType[],
+  difficulty: Difficulty,
+  count: number,
+  questionTypes?: QuestionType[]
+): Question[] {
+  const questions = getQuestionsByMapsAndTypes(mapTypes, difficulty, questionTypes)
   const shuffled = [...questions].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, Math.min(count, shuffled.length))
 }

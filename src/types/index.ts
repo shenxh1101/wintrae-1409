@@ -4,7 +4,58 @@ export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export type QuestionType = 'province' | 'city' | 'river' | 'direction' | 'continent' | 'latitude' | 'longitude' | 'building'
 
-export type PracticeMode = 'mixed' | 'wrong-review'
+export type PracticeMode = 'mixed' | 'wrong-review' | 'task'
+
+export interface ClassroomTask {
+  id: string
+  name: string
+  createdAt: number
+  mapTypes: MapType[]
+  focusTypes: QuestionType[]
+  questionCount: number
+  difficulty: Difficulty
+  timePerQuestion: number
+}
+
+export interface QuestionAnswerDetail {
+  questionId: string
+  question: Question
+  isCorrect: boolean
+  selectedAnswer: string
+  isTimeout: boolean
+  timeUsed: number
+}
+
+export interface TaskResult {
+  taskId: string
+  taskName: string
+  completedAt: number
+  details: QuestionAnswerDetail[]
+  completionRate: number
+  avgTime: number
+  correctCount: number
+  totalCount: number
+}
+
+export type MasteryLevel = 'mastered' | 'partial' | 'weak'
+
+export interface TeacherClassQuestionRecord {
+  questionId: string
+  mapType: MapType
+  questionType: QuestionType
+  prompt: string
+  mastery: MasteryLevel
+  timeUsed: number
+  timestamp: number
+}
+
+export interface ClassSession {
+  id: string
+  name: string
+  startedAt: number
+  endedAt?: number
+  records: TeacherClassQuestionRecord[]
+}
 
 export interface Question {
   id: string
@@ -36,6 +87,9 @@ export interface UserData {
   bestStreak: number
   achievements: string[]
   playHistory: PlayRecord[]
+  taskResults: TaskResult[]
+  classSessions: ClassSession[]
+  currentClassSessionId: string | null
 }
 
 export interface WrongQuestion {

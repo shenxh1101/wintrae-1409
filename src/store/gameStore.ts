@@ -1,12 +1,13 @@
 import { create } from 'zustand'
-import type { Question, Difficulty, MapType, QuestionType, PracticeMode } from '../types'
-import { getRandomQuestions } from '../data'
+import type { Question, Difficulty, MapType, QuestionType, PracticeMode, ClassroomTask, QuestionAnswerDetail } from '../types'
+import { getRandomQuestions, getRandomQuestionsMultiMap } from '../data'
 
 export interface AnswerRecord {
   questionId: string
   isCorrect: boolean
   selectedAnswer: string
   isTimeout: boolean
+  timeUsed: number
 }
 
 interface GameStore {
@@ -31,9 +32,12 @@ interface GameStore {
   hasAnsweredCurrent: boolean
   practiceMode: PracticeMode
   focusTypes: QuestionType[]
+  questionStartTime: number
+  taskInfo?: ClassroomTask
   
   startGame: (mapType: MapType, difficulty: Difficulty, count?: number, focusTypes?: QuestionType[]) => void
   startCustomGame: (questions: Question[], difficulty?: Difficulty, mode?: PracticeMode) => void
+  startTaskGame: (task: ClassroomTask) => void
   selectAnswer: (targetId: string) => boolean
   handleTimeout: () => void
   useHint: () => string | null
@@ -47,6 +51,7 @@ interface GameStore {
   setZoom: (zoom: number) => void
   setSelectedRegion: (id: string | null) => void
   randomQuestion: (mapType?: MapType) => void
+  getAnswerDetails: () => QuestionAnswerDetail[]
 }
 
 const DIFFICULTY_TIME: Record<Difficulty, number> = {
@@ -77,6 +82,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   hasAnsweredCurrent: false,
   practiceMode: 'mixed',
   focusTypes: [],
+  questionStartTime: Date.now(),
   
   startGame: (mapType, difficulty, count = 10, focusTypes = []) => {
     const questions = getRandomQuestions(mapType, difficulty, count, focusTypes.length > 0 ? focusTypes : undefined)
@@ -97,8 +103,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       answerHistory: [],
       bestStreakInGame: 0,
       hasAnsweredCurrent: false,
-      practiceMode: focusTypes.length > 0 ? 'mixed' : 'mixed',
+      practiceMode: 'mixed',
       focusTypes,
+      questionStartTime: Date.now(),
+      taskInfo: undefined,
     })
   },
 
@@ -122,6 +130,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hasAnsweredCurrent: false,
       practiceMode: mode,
       focusTypes: [],
+      questionStartTime: Date.now(),
+      taskInfo: undefined,
+    })
+  },
+
+  startTaskGame: (task) => {
+    const questions = getRandomQuestionsMultiMap(
+      task.mapTypes,
+      task.difficulty,
+      task.questionCount,
+      task.focusTypes.length > 0 ? task.focusTypes : undefined
+    )
+    const perQTime = task.timePerQuestion > 0 ? task.timePerQuestion : DIFFICULTY_TIME[task.difficulty]
+    set({
+      mapType: questions[0]?.mapType ?? task.mapTypes[0] ?? 'china',
+      difficulty: task.difficulty,
+      questions,
+      currentIndex: 0,
+      score: 0,
+      streak: 0,
+      hintsUsed: 0,
+      timeLeft: perQTime,
+      isPlaying: true,
+      showResult: false,
+      isCorrect: false,
+      gameOver: false,
+      selectedRegion: null,
+      answerHistory: [],
+      bestStreakInGame: 0,
+      hasAnsweredCurrent: false,
+      practiceMode: 'task',
+      focusTypes: task.focusTypes,
+      questionStartTime: Date.now(),
+      taskInfo: task,
     })
   },
   
@@ -130,6 +172,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const currentQuestion = state.questions[state.currentIndex]
     if (!currentQuestion || state.hasAnsweredCurrent) return false
     
+    const timeUsed = Math.max(1, Math.round((Date.now() - state.questionStartTime) / 1000))
     const isCorrect = targetId === currentQuestion.targetId
     const newStreak = isCorrect ? state.streak + 1 : 0
     
@@ -138,6 +181,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isCorrect,
       selectedAnswer: targetId,
       isTimeout: false,
+      timeUsed,
     }
     
     set({
@@ -159,11 +203,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const currentQuestion = state.questions[state.currentIndex]
     if (!currentQuestion || state.hasAnsweredCurrent) return
     
+    const timeUsed = Math.max(1, Math.round((Date.now() - state.questionStartTime) / 1000))
+    
     const record: AnswerRecord = {
       questionId: currentQuestion.id,
       isCorrect: false,
       selectedAnswer: 'timeout',
       isTimeout: true,
+      timeUsed,
     }
     
     set({
@@ -195,14 +242,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return
     }
     
+    const nextQuestion = state.questions[nextIndex]
+    const perQTime = state.taskInfo?.timePerQuestion
+      ? state.taskInfo.timePerQuestion
+      : DIFFICULTY_TIME[state.difficulty]
+    
     set({
       currentIndex: nextIndex,
+      mapType: nextQuestion.mapType,
       showResult: false,
       isCorrect: false,
       hintsUsed: 0,
-      timeLeft: DIFFICULTY_TIME[state.difficulty],
+      timeLeft: perQTime,
       selectedRegion: null,
       hasAnsweredCurrent: false,
+      questionStartTime: Date.now(),
     })
   },
   
@@ -227,6 +281,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     hasAnsweredCurrent: false,
     practiceMode: 'mixed',
     focusTypes: [],
+    questionStartTime: Date.now(),
+    taskInfo: undefined,
   }),
   
   setTeacherMode: (enabled) => set({ teacherMode: enabled, showAnswer: false, zoom: 1 }),
@@ -250,6 +306,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
         selectedRegion: null,
       })
     }
+  },
+
+  getAnswerDetails: () => {
+    const state = get()
+    return state.answerHistory.map(rec => {
+      const q = state.questions.find(qq => qq.id === rec.questionId)
+      return {
+        questionId: rec.questionId,
+        question: q!,
+        isCorrect: rec.isCorrect,
+        selectedAnswer: rec.selectedAnswer,
+        isTimeout: rec.isTimeout,
+        timeUsed: rec.timeUsed,
+      } as QuestionAnswerDetail
+    }).filter(d => d.question)
   },
 }))
 

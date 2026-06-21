@@ -140,7 +140,7 @@ const ReviewPage: React.FC = () => {
     if (questions.length === 0) return
 
     startCustomGame(questions, 'easy', 'wrong-review')
-    navigate(`/game/${questions[0].mapType}?difficulty=easy`)
+    navigate(`/game/${questions[0].mapType}?difficulty=easy&mode=wrong-review`)
   }
 
   const handleMarkAllMastered = () => {
