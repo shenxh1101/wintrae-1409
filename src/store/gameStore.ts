@@ -34,9 +34,10 @@ interface GameStore {
   focusTypes: QuestionType[]
   questionStartTime: number
   taskInfo?: ClassroomTask
+  wrongReviewQuestionIds?: string[]
   
   startGame: (mapType: MapType, difficulty: Difficulty, count?: number, focusTypes?: QuestionType[]) => void
-  startCustomGame: (questions: Question[], difficulty?: Difficulty, mode?: PracticeMode) => void
+  startCustomGame: (questions: Question[], difficulty?: Difficulty, mode?: PracticeMode, questionIds?: string[]) => void
   startTaskGame: (task: ClassroomTask) => void
   selectAnswer: (targetId: string) => boolean
   handleTimeout: () => void
@@ -107,10 +108,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       focusTypes,
       questionStartTime: Date.now(),
       taskInfo: undefined,
+      wrongReviewQuestionIds: undefined,
     })
   },
 
-  startCustomGame: (questions, difficulty = 'easy', mode = 'mixed') => {
+  startCustomGame: (questions, difficulty = 'easy', mode = 'mixed', questionIds) => {
     set({
       mapType: questions[0]?.mapType ?? 'china',
       difficulty,
@@ -132,6 +134,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       focusTypes: [],
       questionStartTime: Date.now(),
       taskInfo: undefined,
+      wrongReviewQuestionIds: questionIds,
     })
   },
 
@@ -164,6 +167,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       focusTypes: task.focusTypes,
       questionStartTime: Date.now(),
       taskInfo: task,
+      wrongReviewQuestionIds: undefined,
     })
   },
   
@@ -283,6 +287,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     focusTypes: [],
     questionStartTime: Date.now(),
     taskInfo: undefined,
+    wrongReviewQuestionIds: undefined,
   }),
   
   setTeacherMode: (enabled) => set({ teacherMode: enabled, showAnswer: false, zoom: 1 }),

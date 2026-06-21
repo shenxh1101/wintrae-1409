@@ -309,16 +309,26 @@ const HomePage: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {[...taskResults].reverse().map((r) => (
-                      <div key={r.taskId + r.completedAt} className="p-4 bg-gradient-to-r from-orange-50 to-pink-50 rounded-2xl border border-orange-100 flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-gray-800">{r.taskName}</p>
+                      <div key={r.taskId + r.completedAt} className="p-4 bg-gradient-to-r from-orange-50 to-pink-50 rounded-2xl border border-orange-100 flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-800 truncate">{r.taskName}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {new Date(r.completedAt).toLocaleString()} · 平均 {r.avgTime.toFixed(1)}s · 正确率 {Math.round(r.completionRate * 100)}%
+                            {new Date(r.completedAt).toLocaleString()} · 平均 {r.avgTime.toFixed(1)}s
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-orange-600">{r.correctCount}/{r.totalCount}</p>
-                          <p className="text-xs text-gray-500">答对题数</p>
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-indigo-600">{Math.round(r.completionRate * 100)}%</p>
+                            <p className="text-xs text-gray-500">完成率</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-green-600">{Math.round(r.accuracy * 100)}%</p>
+                            <p className="text-xs text-gray-500">正确率</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-orange-600">{r.correctCount}/{r.totalCount}</p>
+                            <p className="text-xs text-gray-500">答对/总题</p>
+                          </div>
                         </div>
                       </div>
                     ))}

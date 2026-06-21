@@ -28,8 +28,8 @@ const GamePage: React.FC = () => {
   const {
     mapType: storeMapType, difficulty: storeDifficulty, questions, currentIndex, score, streak, hintsUsed,
     timeLeft, isPlaying, showResult, isCorrect, gameOver, selectedRegion, answerHistory, bestStreakInGame,
-    focusTypes, practiceMode, taskInfo, startGame, startCustomGame, startTaskGame, selectAnswer, useHint,
-    nextQuestion, setTimeLeft, resetGame, handleTimeout: storeHandleTimeout, getAnswerDetails,
+    focusTypes, practiceMode, taskInfo, wrongReviewQuestionIds, startGame, startCustomGame, startTaskGame,
+    selectAnswer, useHint, nextQuestion, setTimeLeft, resetGame, handleTimeout: storeHandleTimeout, getAnswerDetails,
   } = useGameStore()
 
   const {
@@ -73,14 +73,32 @@ const GamePage: React.FC = () => {
       hasSavedResultRef.current = true
       const answeredCount = answerHistory.length
       const correctCount = answerHistory.filter(r => r.isCorrect).length
-      addPlayRecord({
-        date: new Date().toISOString().split('T')[0],
-        mapType: paramMapType,
-        difficulty,
-        score,
-        correctCount,
-        totalCount: answeredCount,
-        avgTime: 0,
+      const taskOriginalCount = totalQuestions
+
+      const byMap = new Map<MapType, { correct: number; total: number; score: number; time: number }>()
+      answerHistory.forEach(rec => {
+        const q = questions.find(qq => qq.id === rec.questionId)
+        if (!q) return
+        const prev = byMap.get(q.mapType) ?? { correct: 0, total: 0, score: 0, time: 0 }
+        byMap.set(q.mapType, {
+          correct: prev.correct + (rec.isCorrect ? 1 : 0),
+          total: prev.total + 1,
+          score: prev.score + (rec.isCorrect ? 10 : 0),
+          time: prev.time + (rec.timeUsed || 0),
+        })
+      })
+
+      const today = new Date().toISOString().split('T')[0]
+      byMap.forEach((v, mapTypeKey) => {
+        addPlayRecord({
+          date: today,
+          mapType: mapTypeKey,
+          difficulty,
+          score: v.score,
+          correctCount: v.correct,
+          totalCount: v.total,
+          avgTime: v.total > 0 ? Math.round((v.time / v.total) * 10) / 10 : 0,
+        })
       })
 
       if (isTaskMode && taskInfo) {
@@ -91,10 +109,12 @@ const GamePage: React.FC = () => {
           taskName: taskInfo.name,
           completedAt: Date.now(),
           details,
-          completionRate: correctCount / Math.max(1, answeredCount),
+          completionRate: answeredCount / Math.max(1, taskOriginalCount),
+          accuracy: answeredCount > 0 ? correctCount / answeredCount : 0,
           avgTime: avgT,
           correctCount,
-          totalCount: answeredCount,
+          answeredCount,
+          totalCount: taskOriginalCount,
         }
         addTaskResult(result)
       }
@@ -191,9 +211,15 @@ const GamePage: React.FC = () => {
     if (isTaskMode && taskInfo) {
       startTaskGame(taskInfo)
     } else if (isWrongReviewMode) {
-      const remaining = wrongQuestions.filter(w => !w.mastered).map(w => w.question)
+      const scopeIds = wrongReviewQuestionIds && wrongReviewQuestionIds.length > 0
+        ? new Set(wrongReviewQuestionIds)
+        : null
+      const remaining = wrongQuestions
+        .filter(w => !w.mastered && (!scopeIds || scopeIds.has(w.questionId)))
+        .map(w => w.question)
       if (remaining.length > 0) {
-        startCustomGame(remaining, storeDifficulty || difficulty, 'wrong-review')
+        const ids = scopeIds ? Array.from(scopeIds) : remaining.map(q => q.id)
+        startCustomGame(remaining, storeDifficulty || difficulty, 'wrong-review', ids)
       } else {
         startGame(paramMapType, difficulty, 10, focusTypes)
       }
@@ -264,9 +290,15 @@ const GamePage: React.FC = () => {
                   : '太棒了，你完成了本轮挑战！'}
           </p>
 
-          <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 mb-6`}>
+          <div className={`grid grid-cols-2 ${isTaskMode ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-3 mb-6`}>
             <div className="bg-blue-50 rounded-2xl p-3 text-center"><p className="text-2xl font-bold text-blue-600">{score}</p><p className="text-xs text-gray-500">总得分</p></div>
             <div className="bg-green-50 rounded-2xl p-3 text-center"><p className="text-2xl font-bold text-green-600">{accuracy}%</p><p className="text-xs text-gray-500">正确率</p></div>
+            {isTaskMode && (
+              <div className="bg-indigo-50 rounded-2xl p-3 text-center">
+                <p className="text-2xl font-bold text-indigo-600">{Math.round(finalStats.answeredCount / Math.max(1, totalQuestions) * 100)}%</p>
+                <p className="text-xs text-gray-500">完成率</p>
+              </div>
+            )}
             <div className="bg-orange-50 rounded-2xl p-3 text-center"><p className="text-2xl font-bold text-orange-600">{correctCount}/{answeredCount || totalQuestions}</p><p className="text-xs text-gray-500">答对题数</p></div>
             <div className="bg-purple-50 rounded-2xl p-3 text-center"><p className="text-2xl font-bold text-purple-600">{avgTime.toFixed(1)}s</p><p className="text-xs text-gray-500">平均用时</p></div>
           </div>

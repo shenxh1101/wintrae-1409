@@ -32,8 +32,10 @@ export interface TaskResult {
   completedAt: number
   details: QuestionAnswerDetail[]
   completionRate: number
+  accuracy: number
   avgTime: number
   correctCount: number
+  answeredCount: number
   totalCount: number
 }
 

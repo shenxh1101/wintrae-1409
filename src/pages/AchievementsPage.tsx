@@ -162,7 +162,7 @@ const AchievementsPage: React.FC = () => {
   }
 
   const handleJumpToWrongByMap = (mapType: MapType) => {
-    navigate('/review')
+    navigate(`/review?mapType=${mapType}`)
   }
 
   const handleJumpToWeakType = (mapType: MapType, type: QuestionType) => {

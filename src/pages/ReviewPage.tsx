@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   BookOpen,
@@ -42,6 +42,7 @@ const typeLabel: Record<QuestionType, string> = {
 
 const ReviewPage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const {
     wrongQuestions,
     markWrongReviewed,
@@ -51,11 +52,18 @@ const ReviewPage: React.FC = () => {
   } = useUserStore()
   const startCustomGame = useGameStore((s) => s.startCustomGame)
 
-  const [activeTab, setActiveTab] = useState<MapType | 'all'>('all')
+  const queryMapType = searchParams.get('mapType') as MapType | null
+  const validQueryMap: MapType | null = queryMapType && ['china', 'world', 'grid', 'campus'].includes(queryMapType) ? queryMapType : null
+
+  const [activeTab, setActiveTab] = useState<MapType | 'all'>(validQueryMap ?? 'all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (validQueryMap) setActiveTab(validQueryMap)
+  }, [validQueryMap])
 
   const availableWrongQuestions = useMemo(
     () => wrongQuestions.filter((q) => !q.mastered),
@@ -133,13 +141,14 @@ const ReviewPage: React.FC = () => {
       : new Set(sortedQuestions.map(q => q.questionId))
     if (idsToChallenge.size === 0) return
 
-    const questions = wrongQuestions
+    const matchedWrong = wrongQuestions
       .filter(w => idsToChallenge.has(w.questionId) && !w.mastered)
-      .map(w => w.question)
+    const questions = matchedWrong.map(w => w.question)
 
     if (questions.length === 0) return
 
-    startCustomGame(questions, 'easy', 'wrong-review')
+    const questionIds = Array.from(idsToChallenge)
+    startCustomGame(questions, 'easy', 'wrong-review', questionIds)
     navigate(`/game/${questions[0].mapType}?difficulty=easy&mode=wrong-review`)
   }
 
