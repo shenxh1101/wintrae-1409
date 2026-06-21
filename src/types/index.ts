@@ -4,6 +4,8 @@ export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export type QuestionType = 'province' | 'city' | 'river' | 'direction' | 'continent' | 'latitude' | 'longitude' | 'building'
 
+export type PracticeMode = 'mixed' | 'wrong-review'
+
 export interface Question {
   id: string
   mapType: MapType
@@ -44,6 +46,9 @@ export interface WrongQuestion {
   wrongPosition?: { x: number; y: number }
   timestamp: number
   reviewed: boolean
+  mastered: boolean
+  wrongCount: number
+  lastWrongAnswer?: string
 }
 
 export interface Achievement {

@@ -2,7 +2,7 @@ import chinaQuestions from './china'
 import worldQuestions from './world'
 import gridQuestions from './grid'
 import campusQuestions from './campus'
-import type { Question, MapType, Difficulty } from '../types'
+import type { Question, MapType, Difficulty, QuestionType } from '../types'
 
 export const allQuestions: Question[] = [
   ...chinaQuestions,
@@ -19,8 +19,27 @@ export function getQuestionsByDifficulty(mapType: MapType, difficulty: Difficult
   return allQuestions.filter(q => q.mapType === mapType && q.difficulty === difficulty)
 }
 
-export function getRandomQuestions(mapType: MapType, difficulty: Difficulty, count: number): Question[] {
-  const questions = getQuestionsByDifficulty(mapType, difficulty)
+export function getQuestionsByType(type: QuestionType): Question[] {
+  return allQuestions.filter(q => q.type === type)
+}
+
+export function getQuestionsByTypes(types: QuestionType[]): Question[] {
+  return allQuestions.filter(q => types.includes(q.type))
+}
+
+export function getRandomQuestions(
+  mapType: MapType,
+  difficulty: Difficulty,
+  count: number,
+  questionTypes?: QuestionType[]
+): Question[] {
+  let questions = getQuestionsByDifficulty(mapType, difficulty)
+  if (questionTypes && questionTypes.length > 0) {
+    questions = questions.filter(q => questionTypes.includes(q.type))
+  }
+  if (questions.length === 0) {
+    questions = allQuestions.filter(q => questionTypes?.includes(q.type) ?? true)
+  }
   const shuffled = [...questions].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, Math.min(count, shuffled.length))
 }

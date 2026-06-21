@@ -1,10 +1,26 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BookOpen, Trash2, ChevronDown, ChevronUp, CheckCircle, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpen,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle,
+  XCircle,
+  CheckSquare,
+  Square,
+  Play,
+  SquareCheckBig,
+  Clock,
+  TrendingDown,
+  CheckCircle2,
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MapComponent from '../maps'
 import { useUserStore } from '../store/userStore'
-import type { MapType, WrongQuestion } from '../types'
+import { useGameStore } from '../store/gameStore'
+import type { MapType, WrongQuestion, QuestionType } from '../types'
 
 const mapTypeLabels: Record<MapType, { name: string; icon: string; color: string }> = {
   china: { name: '中国地图', icon: '🇨🇳', color: 'from-red-400 to-orange-400' },
@@ -13,26 +29,58 @@ const mapTypeLabels: Record<MapType, { name: string; icon: string; color: string
   campus: { name: '校园平面图', icon: '🏫', color: 'from-purple-400 to-pink-400' },
 }
 
+const typeLabel: Record<QuestionType, string> = {
+  province: '省份题',
+  city: '城市题',
+  river: '河流题',
+  direction: '方位题',
+  continent: '大洲大洋题',
+  latitude: '纬线题',
+  longitude: '经线题',
+  building: '校园建筑题',
+}
+
 const ReviewPage: React.FC = () => {
   const navigate = useNavigate()
-  const { wrongQuestions, markWrongReviewed, clearWrongQuestions } = useUserStore()
+  const {
+    wrongQuestions,
+    markWrongReviewed,
+    clearWrongQuestions,
+    markWrongMastered,
+    removeWrongQuestion,
+  } = useUserStore()
+  const startCustomGame = useGameStore((s) => s.startCustomGame)
+
   const [activeTab, setActiveTab] = useState<MapType | 'all'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const availableWrongQuestions = useMemo(
+    () => wrongQuestions.filter((q) => !q.mastered),
+    [wrongQuestions]
+  )
+
+  const masteredCount = wrongQuestions.length - availableWrongQuestions.length
 
   const filteredQuestions = activeTab === 'all'
-    ? wrongQuestions
-    : wrongQuestions.filter(q => q.question.mapType === activeTab)
+    ? availableWrongQuestions
+    : availableWrongQuestions.filter(q => q.question.mapType === activeTab)
 
-  const sortedQuestions = [...filteredQuestions].sort((a, b) => b.timestamp - a.timestamp)
+  const sortedQuestions = [...filteredQuestions].sort((a, b) => {
+    const byCount = (b.wrongCount || 1) - (a.wrongCount || 1)
+    return byCount !== 0 ? byCount : b.timestamp - a.timestamp
+  })
 
   const stats = {
-    total: wrongQuestions.length,
-    reviewed: wrongQuestions.filter(q => q.reviewed).length,
-    china: wrongQuestions.filter(q => q.question.mapType === 'china').length,
-    world: wrongQuestions.filter(q => q.question.mapType === 'world').length,
-    grid: wrongQuestions.filter(q => q.question.mapType === 'grid').length,
-    campus: wrongQuestions.filter(q => q.question.mapType === 'campus').length,
+    total: availableWrongQuestions.length,
+    reviewed: availableWrongQuestions.filter(q => q.reviewed).length,
+    mastered: masteredCount,
+    china: availableWrongQuestions.filter(q => q.question.mapType === 'china').length,
+    world: availableWrongQuestions.filter(q => q.question.mapType === 'world').length,
+    grid: availableWrongQuestions.filter(q => q.question.mapType === 'grid').length,
+    campus: availableWrongQuestions.filter(q => q.question.mapType === 'campus').length,
   }
 
   const tabs = [
@@ -43,7 +91,11 @@ const ReviewPage: React.FC = () => {
     { id: 'campus' as const, name: '校园', count: stats.campus },
   ]
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = (id: string, questionId: string) => {
+    if (selectionMode) {
+      toggleSelect(questionId)
+      return
+    }
     setExpandedId(expandedId === id ? null : id)
     const q = wrongQuestions.find(w => w.id === id)
     if (q && !q.reviewed) {
@@ -51,10 +103,57 @@ const ReviewPage: React.FC = () => {
     }
   }
 
+  const toggleSelect = (questionId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(questionId)) next.delete(questionId)
+      else next.add(questionId)
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    if (selectedIds.size === sortedQuestions.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(sortedQuestions.map(q => q.questionId)))
+    }
+  }
+
   const handleClear = () => {
     clearWrongQuestions()
     setShowClearConfirm(false)
+    setSelectionMode(false)
+    setSelectedIds(new Set())
   }
+
+  const handleChallenge = () => {
+    const idsToChallenge = selectionMode
+      ? selectedIds
+      : new Set(sortedQuestions.map(q => q.questionId))
+    if (idsToChallenge.size === 0) return
+
+    const questions = wrongQuestions
+      .filter(w => idsToChallenge.has(w.questionId) && !w.mastered)
+      .map(w => w.question)
+
+    if (questions.length === 0) return
+
+    startCustomGame(questions, 'easy', 'wrong-review')
+    navigate(`/game/${questions[0].mapType}?difficulty=easy`)
+  }
+
+  const handleMarkAllMastered = () => {
+    selectedIds.forEach(id => markWrongMastered(id, true))
+    setSelectedIds(new Set())
+    setSelectionMode(false)
+  }
+
+  const handleRemoveMastered = () => {
+    wrongQuestions.filter(w => w.mastered).forEach(w => removeWrongQuestion(w.questionId))
+  }
+
+  const selectedCount = selectionMode ? selectedIds.size : sortedQuestions.length
 
   return (
     <div className="min-h-screen p-4 md:p-6">
@@ -72,34 +171,112 @@ const ReviewPage: React.FC = () => {
             错题本
           </h1>
           
-          {wrongQuestions.length > 0 && (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-red-500"
-              title="清空错题"
-            >
-              <Trash2 className="w-6 h-6" />
-            </button>
+          {availableWrongQuestions.length > 0 && !selectionMode && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-primary"
+                title="选择错题"
+              >
+                <CheckSquare className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="p-2 bg-white rounded-xl shadow-md hover:shadow-lg transition-all text-red-500"
+                title="清空错题"
+              >
+                <Trash2 className="w-6 h-6" />
+              </button>
+            </div>
           )}
-          {wrongQuestions.length === 0 && <div className="w-10" />}
+          {selectionMode && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setSelectionMode(false); setSelectedIds(new Set()) }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
+              >
+                取消
+              </button>
+            </div>
+          )}
+          {availableWrongQuestions.length === 0 && <div className="w-10" />}
         </div>
         
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-2xl p-4 shadow-md text-center">
             <p className="text-3xl font-bold text-red-500">{stats.total}</p>
-            <p className="text-sm text-gray-500">总错题数</p>
+            <p className="text-sm text-gray-500">待复习</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-md text-center">
             <p className="text-3xl font-bold text-blue-500">{stats.reviewed}</p>
-            <p className="text-sm text-gray-500">已复习</p>
+            <p className="text-sm text-gray-500">已看过</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-md text-center">
-            <p className="text-3xl font-bold text-green-500">
-              {stats.total > 0 ? Math.round((stats.reviewed / stats.total) * 100) : 0}%
+            <p className="text-3xl font-bold text-green-500">{stats.mastered}</p>
+            <p className="text-sm text-gray-500">已掌握</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-md text-center">
+            <p className="text-3xl font-bold text-purple-500">
+              {stats.total + stats.mastered > 0
+                ? Math.round((stats.mastered / (stats.total + stats.mastered)) * 100)
+                : 0}%
             </p>
-            <p className="text-sm text-gray-500">复习率</p>
+            <p className="text-sm text-gray-500">掌握率</p>
           </div>
         </div>
+
+        {availableWrongQuestions.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col md:flex-row items-stretch gap-3">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                <TrendingDown className="w-4 h-4 text-red-500" />
+                错题重练
+              </p>
+              <p className="font-bold text-gray-800">
+                {selectionMode
+                  ? `已选中 ${selectedCount} 道错题`
+                  : `共 ${sortedQuestions.length} 道错题待复习`}
+              </p>
+            </div>
+            {selectionMode && (
+              <button
+                onClick={selectAll}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 justify-center"
+              >
+                {selectedIds.size === sortedQuestions.length ? (
+                  <><CheckSquare className="w-5 h-5" />取消全选</>
+                ) : (
+                  <><Square className="w-5 h-5" />全选</>
+                )}
+              </button>
+            )}
+            <button
+              onClick={handleChallenge}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent-blue text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed justify-center"
+            >
+              <Play className="w-5 h-5" />
+              {selectionMode ? '挑战选中错题' : '一键挑战所有错题'}
+            </button>
+            {selectionMode && selectedCount > 0 && (
+              <button
+                onClick={handleMarkAllMastered}
+                className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-xl font-medium hover:bg-green-100 justify-center border-2 border-green-200"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                标记掌握
+              </button>
+            )}
+            {stats.mastered > 0 && (
+              <button
+                onClick={handleRemoveMastered}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 justify-center text-sm"
+              >
+                清理已掌握
+              </button>
+            )}
+          </div>
+        )}
         
         <div className="flex gap-2 overflow-x-auto pb-2">
           {tabs.map(tab => (
@@ -144,27 +321,54 @@ const ReviewPage: React.FC = () => {
           </motion.div>
         ) : (
           <div className="space-y-4">
-            {sortedQuestions.map((wrongQ, index) => (
-              <motion.div
-                key={wrongQ.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden"
-              >
-                <div
-                  className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => toggleExpand(wrongQ.id)}
+            {sortedQuestions.map((wrongQ, index) => {
+              const isSelected = selectedIds.has(wrongQ.questionId)
+              return (
+                <motion.div
+                  key={wrongQ.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`bg-white rounded-2xl shadow-lg overflow-hidden transition-all ${
+                    isSelected ? 'ring-4 ring-primary' : ''
+                  }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="p-4 cursor-pointer hover:bg-gray-50 transition-colors flex items-start gap-3"
+                    onClick={() => toggleExpand(wrongQ.id, wrongQ.questionId)}
+                  >
+                    {selectionMode && (
+                      <div className="flex-shrink-0 pt-1">
+                        {isSelected ? (
+                          <SquareCheckBig className="w-6 h-6 text-primary" />
+                        ) : (
+                          <Square className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-xl">
                           {mapTypeLabels[wrongQ.question.mapType].icon}
                         </span>
                         <span className="text-sm text-gray-500">
                           {mapTypeLabels[wrongQ.question.mapType].name}
                         </span>
+                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                          {typeLabel[wrongQ.question.type] ?? wrongQ.question.type}
+                        </span>
+                        {(wrongQ.wrongCount || 1) > 1 && (
+                          <span className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                            <TrendingDown className="w-3 h-3" />
+                            错 {wrongQ.wrongCount} 次
+                          </span>
+                        )}
+                        {wrongQ.lastWrongAnswer && (
+                          <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+                            <Clock className="w-3 h-3" />
+                            最近: {wrongQ.lastWrongAnswer === 'timeout' ? '超时' : wrongQ.lastWrongAnswer}
+                          </span>
+                        )}
                         {wrongQ.reviewed && (
                           <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                             <CheckCircle className="w-3 h-3" />
@@ -176,7 +380,7 @@ const ReviewPage: React.FC = () => {
                         {wrongQ.question.prompt}
                       </p>
                     </div>
-                    <div className="ml-4 flex-shrink-0">
+                    <div className="ml-2 flex-shrink-0 flex items-center">
                       {expandedId === wrongQ.id ? (
                         <ChevronUp className="w-6 h-6 text-gray-400" />
                       ) : (
@@ -184,75 +388,88 @@ const ReviewPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                </div>
-                
-                <AnimatePresence>
-                  {expandedId === wrongQ.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-4 pb-4 border-t border-gray-100">
-                        <div className="py-4">
-                          <div className="aspect-video bg-gray-50 rounded-xl overflow-hidden mb-4 ring-2 ring-gray-200">
-                            <MapComponent
-                              mapType={wrongQ.question.mapType}
-                              selectedId={wrongQ.wrongAnswer === 'timeout' ? null : wrongQ.wrongAnswer}
-                              highlightId={null}
-                              showAnswer={true}
-                              answerId={wrongQ.question.targetId}
-                              onRegionClick={() => {}}
-                            />
-                          </div>
+                  
+                  <AnimatePresence>
+                    {expandedId === wrongQ.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4 border-t border-gray-100">
+                          <div className="py-4">
+                            <div className="aspect-video bg-gray-50 rounded-xl overflow-hidden mb-4 ring-2 ring-gray-200">
+                              <MapComponent
+                                mapType={wrongQ.question.mapType}
+                                selectedId={wrongQ.wrongAnswer === 'timeout' ? null : wrongQ.wrongAnswer}
+                                highlightId={null}
+                                showAnswer={true}
+                                answerId={wrongQ.question.targetId}
+                                onRegionClick={() => {}}
+                              />
+                            </div>
 
-                          <div className="flex flex-wrap items-center gap-4 mb-4 px-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <div className="w-5 h-5 rounded-sm border-4 border-red-500 bg-white" />
-                              <span className="text-gray-600">你的答案</span>
+                            <div className="flex flex-wrap items-center gap-4 mb-4 px-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <div className="w-5 h-5 rounded-sm border-4 border-red-500 bg-white" />
+                                <span className="text-gray-600">你的答案</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <div className="w-5 h-5 rounded-sm border-4 border-green-500 bg-white" />
+                                <span className="text-gray-600">正确答案</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <div className="w-5 h-5 rounded-sm border-4 border-green-500 bg-white" />
-                              <span className="text-gray-600">正确答案</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
-                              <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-sm font-bold text-red-700 mb-1">你的答案</p>
-                                <p className="text-red-700 font-semibold text-lg">
-                                  {wrongQ.wrongAnswer === 'timeout' ? '⏱ 超时未作答' : wrongQ.wrongAnswer}
+                            
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                                <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-bold text-red-700 mb-1">你的答案</p>
+                                  <p className="text-red-700 font-semibold text-lg">
+                                    {wrongQ.wrongAnswer === 'timeout' ? '⏱ 超时未作答' : wrongQ.wrongAnswer}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-start gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                                <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-bold text-green-700 mb-1">正确答案</p>
+                                  <p className="text-green-700 font-semibold text-lg">{wrongQ.question.targetId}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
+                                <p className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+                                  <span className="text-xl">💡</span> 知识讲解
+                                </p>
+                                <p className="text-blue-700 leading-relaxed">
+                                  {wrongQ.question.explanation}
                                 </p>
                               </div>
                             </div>
-                            
-                            <div className="flex items-start gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
-                              <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-sm font-bold text-green-700 mb-1">正确答案</p>
-                                <p className="text-green-700 font-semibold text-lg">{wrongQ.question.targetId}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
-                              <p className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
-                                <span className="text-xl">💡</span> 知识讲解
-                              </p>
-                              <p className="text-blue-700 leading-relaxed">
-                                {wrongQ.question.explanation}
-                              </p>
+
+                            <div className="flex gap-2 mt-4">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  markWrongMastered(wrongQ.questionId, true)
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-50 text-green-700 font-bold rounded-xl hover:bg-green-100 transition-colors border-2 border-green-200"
+                              >
+                                <CheckCircle2 className="w-5 h-5" />
+                                我已掌握
+                              </button>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )
+            })}
           </div>
         )}
       </main>

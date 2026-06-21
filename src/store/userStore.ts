@@ -7,6 +7,9 @@ interface UserStore extends UserData {
   wrongQuestions: WrongQuestion[]
   addWrongQuestion: (q: WrongQuestion) => void
   markWrongReviewed: (id: string) => void
+  markWrongMastered: (questionId: string, mastered?: boolean) => void
+  removeWrongQuestion: (questionId: string) => void
+  updateWrongRecord: (questionId: string, wrongAnswer: string, wrongPosition?: { x: number; y: number }) => void
   clearWrongQuestions: () => void
   addPlayRecord: (record: PlayRecord) => void
   updateStats: (correct: boolean, time: number) => void
@@ -38,17 +41,55 @@ export const useUserStore = create<UserStore>()(
           if (exists) {
             return {
               wrongQuestions: state.wrongQuestions.map(w =>
-                w.questionId === q.questionId ? { ...q, reviewed: false } : w
+                w.questionId === q.questionId
+                  ? {
+                      ...q,
+                      reviewed: false,
+                      mastered: false,
+                      wrongCount: (exists.wrongCount || 1) + 1,
+                      lastWrongAnswer: q.wrongAnswer,
+                    }
+                  : w
               )
             }
           }
-          return { wrongQuestions: [...state.wrongQuestions, q] }
+          return { wrongQuestions: [...state.wrongQuestions, { ...q, mastered: false, wrongCount: 1, lastWrongAnswer: q.wrongAnswer }] }
         }),
       
       markWrongReviewed: (id) =>
         set((state) => ({
           wrongQuestions: state.wrongQuestions.map(w =>
             w.id === id ? { ...w, reviewed: true } : w
+          )
+        })),
+
+      markWrongMastered: (questionId, mastered = true) =>
+        set((state) => ({
+          wrongQuestions: state.wrongQuestions.map(w =>
+            w.questionId === questionId ? { ...w, mastered, reviewed: true } : w
+          )
+        })),
+
+      removeWrongQuestion: (questionId) =>
+        set((state) => ({
+          wrongQuestions: state.wrongQuestions.filter(w => w.questionId !== questionId)
+        })),
+
+      updateWrongRecord: (questionId, wrongAnswer, wrongPosition) =>
+        set((state) => ({
+          wrongQuestions: state.wrongQuestions.map(w =>
+            w.questionId === questionId
+              ? {
+                  ...w,
+                  wrongAnswer,
+                  lastWrongAnswer: wrongAnswer,
+                  wrongPosition,
+                  timestamp: Date.now(),
+                  reviewed: false,
+                  mastered: false,
+                  wrongCount: (w.wrongCount || 1) + 1,
+                }
+              : w
           )
         })),
       

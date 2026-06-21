@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { Question, Difficulty, MapType } from '../types'
+import type { Question, Difficulty, MapType, QuestionType, PracticeMode } from '../types'
 import { getRandomQuestions } from '../data'
 
-interface AnswerRecord {
+export interface AnswerRecord {
   questionId: string
   isCorrect: boolean
   selectedAnswer: string
@@ -29,8 +29,11 @@ interface GameStore {
   answerHistory: AnswerRecord[]
   bestStreakInGame: number
   hasAnsweredCurrent: boolean
+  practiceMode: PracticeMode
+  focusTypes: QuestionType[]
   
-  startGame: (mapType: MapType, difficulty: Difficulty, count?: number) => void
+  startGame: (mapType: MapType, difficulty: Difficulty, count?: number, focusTypes?: QuestionType[]) => void
+  startCustomGame: (questions: Question[], difficulty?: Difficulty, mode?: PracticeMode) => void
   selectAnswer: (targetId: string) => boolean
   handleTimeout: () => void
   useHint: () => string | null
@@ -72,9 +75,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   answerHistory: [],
   bestStreakInGame: 0,
   hasAnsweredCurrent: false,
+  practiceMode: 'mixed',
+  focusTypes: [],
   
-  startGame: (mapType, difficulty, count = 10) => {
-    const questions = getRandomQuestions(mapType, difficulty, count)
+  startGame: (mapType, difficulty, count = 10, focusTypes = []) => {
+    const questions = getRandomQuestions(mapType, difficulty, count, focusTypes.length > 0 ? focusTypes : undefined)
     set({
       mapType,
       difficulty,
@@ -92,6 +97,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
       answerHistory: [],
       bestStreakInGame: 0,
       hasAnsweredCurrent: false,
+      practiceMode: focusTypes.length > 0 ? 'mixed' : 'mixed',
+      focusTypes,
+    })
+  },
+
+  startCustomGame: (questions, difficulty = 'easy', mode = 'mixed') => {
+    set({
+      mapType: questions[0]?.mapType ?? 'china',
+      difficulty,
+      questions,
+      currentIndex: 0,
+      score: 0,
+      streak: 0,
+      hintsUsed: 0,
+      timeLeft: DIFFICULTY_TIME[difficulty],
+      isPlaying: true,
+      showResult: false,
+      isCorrect: false,
+      gameOver: false,
+      selectedRegion: null,
+      answerHistory: [],
+      bestStreakInGame: 0,
+      hasAnsweredCurrent: false,
+      practiceMode: mode,
+      focusTypes: [],
     })
   },
   
@@ -195,6 +225,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     answerHistory: [],
     bestStreakInGame: 0,
     hasAnsweredCurrent: false,
+    practiceMode: 'mixed',
+    focusTypes: [],
   }),
   
   setTeacherMode: (enabled) => set({ teacherMode: enabled, showAnswer: false, zoom: 1 }),

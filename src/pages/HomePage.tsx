@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trophy, BookOpen, Monitor, Map, Star, Zap, Target } from 'lucide-react'
+import { Trophy, BookOpen, Monitor, Map, Star, Zap, Target, Layers, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import type { MapType, Difficulty } from '../types'
+import type { MapType, Difficulty, QuestionType } from '../types'
+import { useGameStore } from '../store/gameStore'
 
 const mapTypes = [
   {
@@ -39,18 +40,63 @@ const mapTypes = [
   },
 ]
 
-const difficulties: { id: Difficulty; name: string; stars: number; color: string }[] = [
-  { id: 'easy', name: '简单', stars: 1, color: 'bg-green-400' },
-  { id: 'medium', name: '中等', stars: 2, color: 'bg-yellow-400' },
-  { id: 'hard', name: '困难', stars: 3, color: 'bg-red-400' },
+const specialFocusGroups: {
+  mapType: MapType
+  groups: { id: QuestionType[]; name: string; icon: string; color: string }[]
+}[] = [
+  {
+    mapType: 'china',
+    groups: [
+      { id: ['province'], name: '省份专项', icon: '🗺️', color: 'bg-red-100 text-red-700 border-red-300' },
+      { id: ['city'], name: '城市专项', icon: '🏙️', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+      { id: ['river'], name: '河流专项', icon: '🌊', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+    ],
+  },
+  {
+    mapType: 'grid',
+    groups: [
+      { id: ['latitude'], name: '纬线专项', icon: '↔️', color: 'bg-green-100 text-green-700 border-green-300' },
+      { id: ['longitude'], name: '经线专项', icon: '↕️', color: 'bg-teal-100 text-teal-700 border-teal-300' },
+      { id: ['latitude', 'longitude'], name: '经纬线综合', icon: '➕', color: 'bg-cyan-100 text-cyan-700 border-cyan-300' },
+    ],
+  },
+  {
+    mapType: 'campus',
+    groups: [
+      { id: ['building'], name: '校园建筑专项', icon: '🏫', color: 'bg-purple-100 text-purple-700 border-purple-300' },
+      { id: ['direction'], name: '方位专项', icon: '🧭', color: 'bg-pink-100 text-pink-700 border-pink-300' },
+    ],
+  },
+  {
+    mapType: 'world',
+    groups: [
+      { id: ['continent'], name: '大洲大洋专项', icon: '🌍', color: 'bg-indigo-100 text-indigo-700 border-indigo-300' },
+    ],
+  },
+]
+
+const difficulties: { id: Difficulty; name: string; stars: number; color: string; seconds: number }[] = [
+  { id: 'easy', name: '简单', stars: 1, color: 'bg-green-400', seconds: 60 },
+  { id: 'medium', name: '中等', stars: 2, color: 'bg-yellow-400', seconds: 45 },
+  { id: 'hard', name: '困难', stars: 3, color: 'bg-red-400', seconds: 30 },
 ]
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate()
+  const startGame = useGameStore((s) => s.startGame)
   const [selectedMap, setSelectedMap] = useState<MapType>('china')
   const [difficulty, setDifficulty] = useState<Difficulty>('easy')
+  const [practiceMode, setPracticeMode] = useState<'mixed' | 'focus'>('mixed')
+  const [selectedFocus, setSelectedFocus] = useState<QuestionType[] | null>(null)
+
+  const focusGroups = specialFocusGroups.find((g) => g.mapType === selectedMap)?.groups ?? []
 
   const handleStartGame = () => {
+    if (practiceMode === 'focus' && selectedFocus) {
+      startGame(selectedMap, difficulty, 10, selectedFocus)
+    } else {
+      startGame(selectedMap, difficulty, 10, [])
+    }
     navigate(`/game/${selectedMap}?difficulty=${difficulty}`)
   }
 
@@ -112,7 +158,7 @@ const HomePage: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.1 }}
-                onClick={() => setSelectedMap(map.id)}
+                onClick={() => { setSelectedMap(map.id); setSelectedFocus(null) }}
                 className={`cursor-pointer rounded-2xl p-5 transition-all duration-300 ${
                   selectedMap === map.id
                     ? 'bg-white shadow-xl scale-105 ring-4 ring-primary'
@@ -127,6 +173,81 @@ const HomePage: React.FC = () => {
               </motion.div>
             ))}
           </div>
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mb-10"
+        >
+          <h2 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+            <Layers className="w-6 h-6 text-primary" />
+            练习模式
+          </h2>
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <button
+              onClick={() => setPracticeMode('mixed')}
+              className={`p-4 rounded-2xl border-2 transition-all ${
+                practiceMode === 'mixed'
+                  ? 'bg-primary text-white border-primary shadow-lg scale-[1.02]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-primary'
+              }`}
+            >
+              <div className="text-2xl mb-1">🎯</div>
+              <div className="font-bold">综合练习</div>
+              <div className={`text-xs mt-1 ${practiceMode === 'mixed' ? 'text-white/80' : 'text-gray-500'}`}>
+                随机抽取各种题型
+              </div>
+            </button>
+            <button
+              onClick={() => setPracticeMode('focus')}
+              className={`p-4 rounded-2xl border-2 transition-all ${
+                practiceMode === 'focus'
+                  ? 'bg-accent-blue text-white border-accent-blue shadow-lg scale-[1.02]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-accent-blue'
+              }`}
+            >
+              <div className="text-2xl mb-1">🎓</div>
+              <div className="font-bold">专项训练</div>
+              <div className={`text-xs mt-1 ${practiceMode === 'focus' ? 'text-white/80' : 'text-gray-500'}`}>
+                只练薄弱题型，逐个攻破
+              </div>
+            </button>
+          </div>
+
+          {practiceMode === 'focus' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-white/70 rounded-2xl p-4 border border-gray-200"
+            >
+              <p className="text-sm text-gray-600 mb-3">选择要强化练习的专项：</p>
+              <div className="flex flex-wrap gap-2">
+                {focusGroups.map((g) => (
+                  <button
+                    key={g.id.join(',')}
+                    onClick={() => setSelectedFocus(selectedFocus?.join(',') === g.id.join(',') ? null : g.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all text-sm ${
+                      selectedFocus?.join(',') === g.id.join(',')
+                        ? `${g.color} border-current shadow-md scale-105 font-bold`
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-lg">{g.icon}</span>
+                    {g.name}
+                    {selectedFocus?.join(',') === g.id.join(',') && (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                  </button>
+                ))}
+                {focusGroups.length === 0 && (
+                  <p className="text-gray-500 text-sm italic">该地图暂未提供专项分类</p>
+                )}
+              </div>
+            </motion.div>
+          )}
         </motion.section>
 
         <motion.section
@@ -161,7 +282,7 @@ const HomePage: React.FC = () => {
                 </div>
                 <span className="font-bold text-gray-700">{diff.name}</span>
                 <span className={`text-xs mt-1 px-3 py-0.5 rounded-full ${diff.color} text-white`}>
-                  {diff.id === 'easy' ? '60秒' : diff.id === 'medium' ? '45秒' : '30秒'}
+                  {diff.seconds}秒
                 </span>
               </button>
             ))}
@@ -176,10 +297,12 @@ const HomePage: React.FC = () => {
         >
           <button
             onClick={handleStartGame}
-            className="px-12 py-5 bg-gradient-to-r from-primary to-accent-blue text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl transform hover:-translate-y-2 transition-all duration-300 flex items-center gap-3 animate-pulse"
+            disabled={practiceMode === 'focus' && !selectedFocus}
+            className="px-12 py-5 bg-gradient-to-r from-primary to-accent-blue text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl transform hover:-translate-y-2 transition-all duration-300 flex items-center gap-3 animate-pulse disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
             <Zap className="w-7 h-7 fill-yellow-300" />
-            开始挑战
+            {practiceMode === 'focus' && selectedFocus ? '开始专项训练' : '开始挑战'}
+            <ChevronRight className="w-6 h-6" />
           </button>
           
           <button
