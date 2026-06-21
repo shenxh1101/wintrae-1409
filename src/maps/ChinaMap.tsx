@@ -1,71 +1,5 @@
 import React from 'react'
 
-interface MapRegionProps {
-  id: string
-  name: string
-  isSelected: boolean
-  isHighlighted: boolean
-  isAnswer: boolean
-  showAnswer: boolean
-  onClick: (id: string) => void
-  children: React.ReactNode
-  fill?: string
-}
-
-const MapRegion: React.FC<MapRegionProps> = ({
-  id,
-  name,
-  isSelected,
-  isHighlighted,
-  isAnswer,
-  showAnswer,
-  onClick,
-  children,
-  fill = '#95E1D3',
-}) => {
-  let strokeColor = '#4A5568'
-  let strokeWidth = 1
-  let opacity = 1
-  
-  if (showAnswer && isAnswer) {
-    strokeColor = '#10B981'
-    strokeWidth = 3
-  }
-  
-  if (isSelected && isAnswer) {
-    strokeColor = '#10B981'
-    strokeWidth = 4
-  } else if (isSelected && !isAnswer) {
-    strokeColor = '#EF4444'
-    strokeWidth = 4
-  }
-  
-  if (isHighlighted) {
-    strokeColor = '#FF6B6B'
-    strokeWidth = 3
-    opacity = 0.8
-  }
-  
-  return (
-    <g
-      className="map-region"
-      onClick={() => onClick(id)}
-      style={{ cursor: 'pointer' }}
-    >
-      <g
-        fill={fill}
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
-        opacity={opacity}
-        style={{ transition: 'all 0.2s ease' }}
-      >
-        {children}
-      </g>
-      <title>{name}</title>
-    </g>
-  )
-}
-
 interface ChinaMapProps {
   selectedId: string | null
   highlightId: string | null
@@ -73,6 +7,100 @@ interface ChinaMapProps {
   answerId?: string
   onRegionClick: (id: string) => void
   zoom?: number
+}
+
+interface ClickableProps {
+  id: string
+  isSelected: boolean
+  isAnswer: boolean
+  isHighlight: boolean
+  showAnswer: boolean
+  onClick: (id: string) => void
+}
+
+function getProvinceStyle(props: ClickableProps, fill: string) {
+  let strokeColor = '#4A5568'
+  let strokeWidth = 1
+  let opacity = 1
+  let actualFill = fill
+
+  if (props.showAnswer && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 4
+  }
+  if (props.isHighlight) {
+    strokeColor = '#F97316'
+    strokeWidth = 4
+    opacity = 0.85
+  }
+  if (props.isSelected && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 5
+    opacity = 1
+  } else if (props.isSelected && !props.isAnswer) {
+    strokeColor = '#EF4444'
+    strokeWidth = 5
+    opacity = 1
+  }
+
+  return { fill: actualFill, stroke: strokeColor, strokeWidth, opacity }
+}
+
+function getRiverStyle(props: ClickableProps, stroke: string) {
+  let strokeColor = stroke
+  let strokeWidth = 5
+  let opacity = 0.75
+
+  if (props.showAnswer && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 8
+    opacity = 1
+  }
+  if (props.isHighlight) {
+    strokeColor = '#F97316'
+    strokeWidth = 8
+    opacity = 0.9
+  }
+  if (props.isSelected && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 10
+    opacity = 1
+  } else if (props.isSelected && !props.isAnswer) {
+    strokeColor = '#EF4444'
+    strokeWidth = 10
+    opacity = 1
+  }
+
+  return { stroke: strokeColor, strokeWidth, opacity }
+}
+
+function getCityStyle(props: ClickableProps, fill: string) {
+  let strokeColor = '#2D3748'
+  let strokeWidth = 2
+  let r = 7
+  let actualFill = fill
+
+  if (props.showAnswer && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 5
+    r = 11
+  }
+  if (props.isHighlight) {
+    strokeColor = '#F97316'
+    strokeWidth = 5
+    r = 11
+  }
+  if (props.isSelected && props.isAnswer) {
+    strokeColor = '#10B981'
+    strokeWidth = 6
+    r = 12
+  } else if (props.isSelected && !props.isAnswer) {
+    strokeColor = '#EF4444'
+    strokeWidth = 6
+    r = 12
+  }
+
+  return { fill: actualFill, stroke: strokeColor, strokeWidth, r }
 }
 
 const ChinaMap: React.FC<ChinaMapProps> = ({
@@ -119,26 +147,39 @@ const ChinaMap: React.FC<ChinaMapProps> = ({
     { id: 'hongkong', name: '香港特别行政区', x: 375, y: 410, w: 10, h: 10, fill: '#FF6B6B' },
     { id: 'macau', name: '澳门特别行政区', x: 355, y: 412, w: 8, h: 8, fill: '#4ECDC4' },
   ]
-  
+
   const rivers = [
     {
       id: 'yangtze',
       name: '长江',
-      path: 'M 100 280 Q 200 270 280 285 Q 350 300 410 290',
+      path: 'M 100 280 Q 180 268 250 278 Q 310 295 370 292 Q 400 288 420 290',
       stroke: '#3B82F6',
+      labelX: 250,
+      labelY: 272,
     },
     {
       id: 'yellow',
       name: '黄河',
-      path: 'M 120 180 Q 200 170 280 190 Q 330 220 370 210',
+      path: 'M 120 180 Q 190 165 260 182 Q 310 205 340 208 Q 370 205 380 210',
       stroke: '#F59E0B',
+      labelX: 240,
+      labelY: 175,
     },
   ]
-  
+
   const cities = [
-    { id: 'xian', name: '西安', x: 320, y: 200, r: 6, fill: '#EF4444' },
-    { id: 'hangzhou', name: '杭州', x: 388, y: 285, r: 6, fill: '#EF4444' },
+    { id: 'xian', name: '西安', x: 320, y: 200, fill: '#EF4444', labelX: 320, labelY: 188 },
+    { id: 'hangzhou', name: '杭州', x: 388, y: 285, fill: '#EF4444', labelX: 388, labelY: 273 },
   ]
+
+  const c = (id: string): ClickableProps => ({
+    id,
+    isSelected: selectedId === id,
+    isAnswer: answerId === id,
+    isHighlight: highlightId === id,
+    showAnswer,
+    onClick: onRegionClick,
+  })
 
   return (
     <svg
@@ -147,77 +188,146 @@ const ChinaMap: React.FC<ChinaMapProps> = ({
       style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
     >
       <rect x="0" y="0" width="500" height="480" fill="#E0F7FA" rx="12" />
-      
+
       <text x="250" y="30" textAnchor="middle" fill="#2D3748" fontSize="18" fontWeight="bold">
         中国地图
       </text>
-      
-      {rivers.map(river => (
-        <g key={river.id}>
-          <path
-            d={river.path}
-            fill="none"
-            stroke={river.stroke}
-            strokeWidth="4"
-            strokeLinecap="round"
-            opacity={0.7}
-          />
-          <title>{river.name}</title>
-        </g>
-      ))}
-      
-      {provinces.map(province => (
-        <MapRegion
-          key={province.id}
-          id={province.id}
-          name={province.name}
-          isSelected={selectedId === province.id}
-          isHighlighted={highlightId === province.id}
-          isAnswer={answerId === province.id}
-          showAnswer={showAnswer}
-          onClick={onRegionClick}
-          fill={province.fill}
-        >
-          <rect
-            x={province.x}
-            y={province.y}
-            width={province.w}
-            height={province.h}
-            rx="4"
-          />
-        </MapRegion>
-      ))}
-      
-      {cities.map(city => (
-        <g key={city.id} onClick={() => onRegionClick(city.id)} style={{ cursor: 'pointer' }}>
-          <circle
-            cx={city.x}
-            cy={city.y}
-            r={city.r}
-            fill={city.fill}
-            stroke={selectedId === city.id ? '#10B981' : '#2D3748'}
-            strokeWidth={selectedId === city.id ? 3 : 1}
-          />
-          <title>{city.name}</title>
-        </g>
-      ))}
-      
-      {provinces.map(province => (
-        province.w > 40 && (
-          <text
-            key={`label-${province.id}`}
-            x={province.x + province.w / 2}
-            y={province.y + province.h / 2}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={province.w > 60 ? '10' : '8'}
-            fill="#1F2937"
-            pointerEvents="none"
+
+      {rivers.map(river => {
+        const style = getRiverStyle(c(river.id), river.stroke)
+        return (
+          <g
+            key={river.id}
+            className="map-region"
+            onClick={() => onRegionClick(river.id)}
+            style={{ cursor: 'pointer' }}
           >
-            {province.name.replace(/省|市|自治区|壮族自治区|回族自治区|维吾尔自治区|特别行政区/g, '')}
-          </text>
+            <path
+              d={river.path}
+              fill="none"
+              stroke={style.stroke}
+              strokeWidth={style.strokeWidth}
+              strokeLinecap="round"
+              opacity={style.opacity}
+              style={{ transition: 'all 0.25s ease' }}
+            />
+            <path
+              d={river.path}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="22"
+              strokeLinecap="round"
+              style={{ cursor: 'pointer' }}
+            />
+            <text
+              x={river.labelX}
+              y={river.labelY}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="bold"
+              fill={style.stroke}
+              pointerEvents="none"
+              style={{ transition: 'all 0.25s ease', paintOrder: 'stroke' }}
+              stroke="white"
+              strokeWidth="3"
+            >
+              {river.name}
+            </text>
+            <title>{river.name} - 点击作答</title>
+          </g>
         )
-      ))}
+      })}
+
+      {provinces.map(province => {
+        const style = getProvinceStyle(c(province.id), province.fill)
+        return (
+          <g
+            key={province.id}
+            className="map-region"
+            onClick={() => onRegionClick(province.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <rect
+              x={province.x}
+              y={province.y}
+              width={province.w}
+              height={province.h}
+              rx="4"
+              fill={style.fill}
+              stroke={style.stroke}
+              strokeWidth={style.strokeWidth}
+              opacity={style.opacity}
+              style={{ transition: 'all 0.2s ease' }}
+            />
+            {province.w > 40 && (
+              <text
+                x={province.x + province.w / 2}
+                y={province.y + province.h / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={province.w > 60 ? '10' : '8'}
+                fill="#1F2937"
+                pointerEvents="none"
+                style={{ transition: 'all 0.2s ease' }}
+              >
+                {province.name.replace(/省|市|自治区|壮族自治区|回族自治区|维吾尔自治区|特别行政区/g, '')}
+              </text>
+            )}
+            <title>{province.name}</title>
+          </g>
+        )
+      })}
+
+      {cities.map(city => {
+        const style = getCityStyle(c(city.id), city.fill)
+        const textFill =
+          (c(city.id).isSelected && !c(city.id).isAnswer) ? '#EF4444'
+          : ((c(city.id).isSelected && c(city.id).isAnswer) || (c(city.id).showAnswer && c(city.id).isAnswer)) ? '#10B981'
+          : c(city.id).isHighlight ? '#F97316'
+          : '#7F1D1D'
+
+        return (
+          <g
+            key={city.id}
+            className="map-region"
+            onClick={() => onRegionClick(city.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <circle
+              cx={city.x + 0.001}
+              cy={city.y}
+              r={style.r + 8}
+              fill="transparent"
+              style={{ cursor: 'pointer' }}
+            />
+            <circle
+              cx={city.x}
+              cy={city.y}
+              r={style.r}
+              fill={style.fill}
+              stroke={style.stroke}
+              strokeWidth={style.strokeWidth}
+              style={{ transition: 'all 0.25s ease' }}
+            />
+            <text
+              x={city.labelX}
+              y={city.labelY}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="bold"
+              fill={textFill}
+              pointerEvents="none"
+              paintOrder="stroke"
+              stroke="white"
+              strokeWidth="3"
+              style={{ transition: 'all 0.25s ease' }}
+            >
+              {city.name}
+            </text>
+            <title>{city.name} - 点击作答</title>
+          </g>
+        )
+      })}
     </svg>
   )
 }

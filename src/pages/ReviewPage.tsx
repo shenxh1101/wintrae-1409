@@ -196,39 +196,52 @@ const ReviewPage: React.FC = () => {
                     >
                       <div className="px-4 pb-4 border-t border-gray-100">
                         <div className="py-4">
-                          <div className="aspect-video bg-gray-50 rounded-xl overflow-hidden mb-4">
+                          <div className="aspect-video bg-gray-50 rounded-xl overflow-hidden mb-4 ring-2 ring-gray-200">
                             <MapComponent
                               mapType={wrongQ.question.mapType}
-                              selectedId={wrongQ.wrongAnswer}
+                              selectedId={wrongQ.wrongAnswer === 'timeout' ? null : wrongQ.wrongAnswer}
                               highlightId={null}
                               showAnswer={true}
                               answerId={wrongQ.question.targetId}
                               onRegionClick={() => {}}
                             />
                           </div>
+
+                          <div className="flex flex-wrap items-center gap-4 mb-4 px-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <div className="w-5 h-5 rounded-sm border-4 border-red-500 bg-white" />
+                              <span className="text-gray-600">你的答案</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <div className="w-5 h-5 rounded-sm border-4 border-green-500 bg-white" />
+                              <span className="text-gray-600">正确答案</span>
+                            </div>
+                          </div>
                           
                           <div className="space-y-3">
-                            <div className="flex items-start gap-3 p-3 bg-red-50 rounded-xl">
-                              <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                              <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-sm font-medium text-red-700">你的答案</p>
-                                <p className="text-red-600">
-                                  {wrongQ.wrongAnswer === 'timeout' ? '超时未作答' : wrongQ.wrongAnswer}
+                                <p className="text-sm font-bold text-red-700 mb-1">你的答案</p>
+                                <p className="text-red-700 font-semibold text-lg">
+                                  {wrongQ.wrongAnswer === 'timeout' ? '⏱ 超时未作答' : wrongQ.wrongAnswer}
                                 </p>
                               </div>
                             </div>
                             
-                            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-xl">
-                              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex items-start gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                              <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-sm font-medium text-green-700">正确答案</p>
-                                <p className="text-green-600">{wrongQ.question.targetId}</p>
+                                <p className="text-sm font-bold text-green-700 mb-1">正确答案</p>
+                                <p className="text-green-700 font-semibold text-lg">{wrongQ.question.targetId}</p>
                               </div>
                             </div>
                             
-                            <div className="p-4 bg-blue-50 rounded-xl">
-                              <p className="text-sm font-medium text-blue-700 mb-2">💡 知识讲解</p>
-                              <p className="text-blue-600 leading-relaxed">
+                            <div className="p-5 bg-blue-50 rounded-xl border border-blue-200">
+                              <p className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+                                <span className="text-xl">💡</span> 知识讲解
+                              </p>
+                              <p className="text-blue-700 leading-relaxed">
                                 {wrongQ.question.explanation}
                               </p>
                             </div>

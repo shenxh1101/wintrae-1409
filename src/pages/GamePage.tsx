@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Lightbulb, Clock, Star, Trophy, Home, RotateCcw, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -18,7 +18,7 @@ const GamePage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const difficulty = (searchParams.get('difficulty') as Difficulty) || 'easy'
   const navigate = useNavigate()
-  
+
   const {
     questions,
     currentIndex,
@@ -31,20 +31,24 @@ const GamePage: React.FC = () => {
     isCorrect,
     gameOver,
     selectedRegion,
+    answerHistory,
+    bestStreakInGame,
     startGame,
     selectAnswer,
     useHint,
     nextQuestion,
     setTimeLeft,
     resetGame,
+    handleTimeout: storeHandleTimeout,
   } = useGameStore()
-  
+
   const { addWrongQuestion, updateStats, updateBestStreak, checkNewAchievements } = useUserStore()
-  
+
   const [hintText, setHintText] = useState<string | null>(null)
   const [showConfetti, setShowConfetti] = useState(false)
-  const [startTime, setStartTime] = useState<number>(Date.now())
   const [newAchievements, setNewAchievements] = useState<string[]>([])
+  const wrongIdSetRef = useRef<Set<string>>(new Set())
+  const achievementSetRef = useRef<Set<string>>(new Set())
 
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
@@ -52,6 +56,8 @@ const GamePage: React.FC = () => {
 
   useEffect(() => {
     startGame(mapType, difficulty, 10)
+    wrongIdSetRef.current = new Set()
+    achievementSetRef.current = new Set()
     return () => {
       resetGame()
     }
@@ -59,84 +65,94 @@ const GamePage: React.FC = () => {
 
   useEffect(() => {
     if (!isPlaying || showResult || gameOver) return
-    
+
     const timer = setInterval(() => {
       setTimeLeft(Math.max(0, timeLeft - 1))
     }, 1000)
-    
+
     return () => clearInterval(timer)
   }, [isPlaying, showResult, gameOver, timeLeft, setTimeLeft])
 
   useEffect(() => {
     if (timeLeft === 0 && isPlaying && !showResult) {
-      handleTimeout()
+      doHandleTimeout()
     }
   }, [timeLeft, isPlaying, showResult])
 
-  const handleTimeout = () => {
+  const doHandleTimeout = () => {
+    storeHandleTimeout()
     const timeUsed = DIFFICULTY_TIME[difficulty]
     updateStats(false, timeUsed)
-    
-    if (currentQuestion) {
-      const wrongQ: WrongQuestion = {
-        id: `wrong-${Date.now()}`,
-        questionId: currentQuestion.id,
-        question: currentQuestion,
-        wrongAnswer: 'timeout',
-        timestamp: Date.now(),
-        reviewed: false,
-      }
-      addWrongQuestion(wrongQ)
-    }
-    
-    updateBestStreak(0)
-    const achievements = checkNewAchievements(0)
-    if (achievements.length > 0) {
-      setNewAchievements(achievements)
-    }
-    
-    setShowConfetti(false)
-  }
 
-  const handleRegionClick = useCallback((regionId: string) => {
-    if (showResult || gameOver || !isPlaying) return
-    
-    const correct = selectAnswer(regionId)
-    const timeUsed = DIFFICULTY_TIME[difficulty] - timeLeft
-    
-    updateStats(correct, timeUsed)
-    
-    if (correct) {
-      setShowConfetti(true)
-      setTimeout(() => setShowConfetti(false), 1500)
-      
-      const newStreak = streak + 1
-      updateBestStreak(newStreak)
-      
-      const achievements = checkNewAchievements(newStreak)
-      if (achievements.length > 0) {
-        setNewAchievements(achievements)
-      }
-    } else {
-      if (currentQuestion) {
+    if (currentQuestion) {
+      const key = currentQuestion.id
+      if (!wrongIdSetRef.current.has(key)) {
+        wrongIdSetRef.current.add(key)
         const wrongQ: WrongQuestion = {
-          id: `wrong-${Date.now()}`,
+          id: `wrong-${Date.now()}-${Math.random()}`,
           questionId: currentQuestion.id,
           question: currentQuestion,
-          wrongAnswer: regionId,
+          wrongAnswer: 'timeout',
           timestamp: Date.now(),
           reviewed: false,
         }
         addWrongQuestion(wrongQ)
       }
+    }
+
+    updateBestStreak(0)
+    const ach = checkNewAchievements(0).filter(a => !achievementSetRef.current.has(a))
+    if (ach.length > 0) {
+      ach.forEach(a => achievementSetRef.current.add(a))
+      setNewAchievements(prev => [...prev, ...ach])
+    }
+
+    setShowConfetti(false)
+  }
+
+  const handleRegionClick = useCallback((regionId: string) => {
+    if (showResult || gameOver || !isPlaying) return
+
+    const correct = selectAnswer(regionId)
+    const timeUsed = Math.max(1, DIFFICULTY_TIME[difficulty] - timeLeft)
+
+    updateStats(correct, timeUsed)
+
+    if (correct) {
+      setShowConfetti(true)
+      setTimeout(() => setShowConfetti(false), 1500)
+
+      const newStreak = streak + 1
+      updateBestStreak(newStreak)
+
+      const ach = checkNewAchievements(newStreak).filter(a => !achievementSetRef.current.has(a))
+      if (ach.length > 0) {
+        ach.forEach(a => achievementSetRef.current.add(a))
+        setNewAchievements(prev => [...prev, ...ach])
+      }
+    } else {
+      if (currentQuestion) {
+        const key = currentQuestion.id
+        if (!wrongIdSetRef.current.has(key)) {
+          wrongIdSetRef.current.add(key)
+          const wrongQ: WrongQuestion = {
+            id: `wrong-${Date.now()}-${Math.random()}`,
+            questionId: currentQuestion.id,
+            question: currentQuestion,
+            wrongAnswer: regionId,
+            timestamp: Date.now(),
+            reviewed: false,
+          }
+          addWrongQuestion(wrongQ)
+        }
+      }
       updateBestStreak(0)
-      const achievements = checkNewAchievements(0)
-      if (achievements.length > 0) {
-        setNewAchievements(achievements)
+      const ach = checkNewAchievements(0).filter(a => !achievementSetRef.current.has(a))
+      if (ach.length > 0) {
+        ach.forEach(a => achievementSetRef.current.add(a))
+        setNewAchievements(prev => [...prev, ...ach])
       }
     }
-    
-    setStartTime(Date.now())
   }, [showResult, gameOver, isPlaying, selectAnswer, timeLeft, difficulty, streak, currentQuestion, updateStats, addWrongQuestion, updateBestStreak, checkNewAchievements])
 
   const handleUseHint = () => {
@@ -147,14 +163,14 @@ const GamePage: React.FC = () => {
   const handleNextQuestion = () => {
     setHintText(null)
     nextQuestion()
-    setStartTime(Date.now())
   }
 
   const handleRestart = () => {
     startGame(mapType, difficulty, 10)
+    wrongIdSetRef.current = new Set()
+    achievementSetRef.current = new Set()
     setHintText(null)
     setNewAchievements([])
-    setStartTime(Date.now())
   }
 
   const timePercent = useMemo(() => {
@@ -168,6 +184,14 @@ const GamePage: React.FC = () => {
     return 'bg-red-500'
   }, [timePercent])
 
+  const finalStats = useMemo(() => {
+    const answeredCount = answerHistory.length
+    const correctCount = answerHistory.filter(r => r.isCorrect).length
+    const bestStreak = bestStreakInGame
+    const accuracy = answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0
+    return { answeredCount, correctCount, bestStreak, accuracy }
+  }, [answerHistory, bestStreakInGame])
+
   const confettiPieces = useMemo(() => {
     const colors = ['#FF6B6B', '#4ECDC4', '#FCE38A', '#95E1D3', '#DDA0DD', '#FFD93D']
     return Array.from({ length: 30 }, (_, i) => ({
@@ -180,12 +204,9 @@ const GamePage: React.FC = () => {
   }, [showConfetti])
 
   if (gameOver) {
-    const correctCount = questions.filter((_, i) => {
-      return i < currentIndex || (i === currentIndex && showResult && isCorrect)
-    }).length
-    
-    const actualCorrect = score > 0 ? Math.floor(score / 10) - Math.floor((streak > 0 ? streak - 1 : 0) * streak / 2) : 0
-    
+    const { correctCount, bestStreak, accuracy } = finalStats
+    const answered = Math.max(finalStats.answeredCount, totalQuestions)
+
     return (
       <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
         <motion.div
@@ -196,31 +217,29 @@ const GamePage: React.FC = () => {
           <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-lg">
             <Trophy className="w-12 h-12 text-white" />
           </div>
-          
+
           <h2 className="text-3xl font-bold text-gray-800 mb-2">挑战完成！</h2>
           <p className="text-gray-500 mb-6">太棒了，你完成了本轮挑战！</p>
-          
+
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-blue-50 rounded-2xl p-4">
               <p className="text-3xl font-bold text-blue-600">{score}</p>
               <p className="text-sm text-gray-500">总得分</p>
             </div>
             <div className="bg-green-50 rounded-2xl p-4">
-              <p className="text-3xl font-bold text-green-600">
-                {Math.round((correctCount / totalQuestions) * 100)}%
-              </p>
+              <p className="text-3xl font-bold text-green-600">{accuracy}%</p>
               <p className="text-sm text-gray-500">正确率</p>
             </div>
             <div className="bg-orange-50 rounded-2xl p-4">
-              <p className="text-3xl font-bold text-orange-600">{correctCount}/{totalQuestions}</p>
+              <p className="text-3xl font-bold text-orange-600">{correctCount}/{answered}</p>
               <p className="text-sm text-gray-500">答对题数</p>
             </div>
             <div className="bg-purple-50 rounded-2xl p-4">
-              <p className="text-3xl font-bold text-purple-600">{useUserStore.getState().bestStreak}</p>
+              <p className="text-3xl font-bold text-purple-600">{bestStreak}</p>
               <p className="text-sm text-gray-500">最佳连对</p>
             </div>
           </div>
-          
+
           {newAchievements.length > 0 && (
             <div className="mb-6 p-4 bg-yellow-50 rounded-2xl">
               <p className="font-bold text-yellow-800 mb-2">🎉 解锁新成就！</p>
@@ -233,7 +252,7 @@ const GamePage: React.FC = () => {
               </div>
             </div>
           )}
-          
+
           <div className="flex flex-col gap-3">
             <button
               onClick={handleRestart}
@@ -257,7 +276,7 @@ const GamePage: React.FC = () => {
             </button>
           </div>
         </motion.div>
-        
+
         {showConfetti && confettiPieces.map(piece => (
           <div
             key={piece.id}
@@ -283,6 +302,8 @@ const GamePage: React.FC = () => {
     )
   }
 
+  const displaySelectedId = selectedRegion === 'timeout' ? null : selectedRegion
+
   return (
     <div className="min-h-screen p-4 md:p-6">
       <header className="max-w-4xl mx-auto mb-4">
@@ -293,13 +314,13 @@ const GamePage: React.FC = () => {
           >
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </button>
-          
+
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-md">
               <Star className="w-5 h-5 text-yellow-500 fill-yellow-400" />
               <span className="font-bold text-gray-800">{score}</span>
             </div>
-            
+
             {streak > 0 && (
               <motion.div
                 initial={{ scale: 0 }}
@@ -312,7 +333,7 @@ const GamePage: React.FC = () => {
             )}
           </div>
         </div>
-        
+
         <div className="bg-white rounded-2xl shadow-md p-3 mb-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -328,6 +349,7 @@ const GamePage: React.FC = () => {
           <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
             <motion.div
               className={`h-full ${timeColor} rounded-full`}
+              key={`${currentIndex}-bar`}
               initial={{ width: '100%' }}
               animate={{ width: `${timePercent}%` }}
               transition={{ duration: 1 }}
@@ -341,13 +363,13 @@ const GamePage: React.FC = () => {
           <div className="relative aspect-[4/3] md:aspect-video bg-gray-50 rounded-2xl overflow-hidden">
             <MapComponent
               mapType={mapType}
-              selectedId={selectedRegion}
+              selectedId={displaySelectedId}
               highlightId={showResult && !isCorrect ? currentQuestion.targetId : null}
               showAnswer={showResult}
               answerId={currentQuestion.targetId}
               onRegionClick={handleRegionClick}
             />
-            
+
             <AnimatePresence>
               {showResult && (
                 <motion.div
@@ -361,10 +383,12 @@ const GamePage: React.FC = () => {
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     className={`w-28 h-28 rounded-full flex items-center justify-center shadow-2xl ${
-                      isCorrect ? 'bg-green-500' : 'bg-red-500'
+                      isCorrect ? 'bg-green-500' : (selectedRegion === 'timeout' ? 'bg-gray-500' : 'bg-red-500')
                     }`}
                   >
-                    <span className="text-5xl">{isCorrect ? '✓' : '✗'}</span>
+                    <span className="text-5xl">
+                      {isCorrect ? '✓' : (selectedRegion === 'timeout' ? '⏱' : '✗')}
+                    </span>
                   </motion.div>
                 </motion.div>
               )}
@@ -395,7 +419,7 @@ const GamePage: React.FC = () => {
               </h3>
             </div>
           </div>
-          
+
           {hintText && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -409,24 +433,40 @@ const GamePage: React.FC = () => {
               <p className="mt-2 text-yellow-800">{hintText}</p>
             </motion.div>
           )}
-          
+
           {showResult && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className={`mb-4 p-4 rounded-2xl ${
-                isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-blue-50 border-2 border-blue-200'
+                isCorrect
+                  ? 'bg-green-50 border-2 border-green-200'
+                  : selectedRegion === 'timeout'
+                    ? 'bg-gray-50 border-2 border-gray-200'
+                    : 'bg-blue-50 border-2 border-blue-200'
               }`}
             >
-              <p className={`font-bold mb-2 ${isCorrect ? 'text-green-700' : 'text-blue-700'}`}>
-                {isCorrect ? '🎉 回答正确！' : '💡 知识讲解'}
+              <p className={`font-bold mb-2 ${
+                isCorrect
+                  ? 'text-green-700'
+                  : selectedRegion === 'timeout'
+                    ? 'text-gray-700'
+                    : 'text-blue-700'
+              }`}>
+                {isCorrect ? '🎉 回答正确！' : selectedRegion === 'timeout' ? '⏱ 时间到！' : '💡 知识讲解'}
               </p>
-              <p className={`${isCorrect ? 'text-green-600' : 'text-blue-600'}`}>
+              <p className={`${
+                isCorrect
+                  ? 'text-green-600'
+                  : selectedRegion === 'timeout'
+                    ? 'text-gray-600'
+                    : 'text-blue-600'
+              }`}>
                 {currentQuestion.explanation}
               </p>
             </motion.div>
           )}
-          
+
           <div className="flex gap-3">
             {!showResult && (
               <button
@@ -442,7 +482,7 @@ const GamePage: React.FC = () => {
                 提示 ({3 - hintsUsed})
               </button>
             )}
-            
+
             {showResult && (
               <button
                 onClick={handleNextQuestion}
@@ -455,7 +495,7 @@ const GamePage: React.FC = () => {
           </div>
         </motion.div>
       </main>
-      
+
       {showConfetti && confettiPieces.map(piece => (
         <div
           key={piece.id}

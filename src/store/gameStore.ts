@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import type { Question, Difficulty, MapType } from '../types'
 import { getRandomQuestions } from '../data'
 
+interface AnswerRecord {
+  questionId: string
+  isCorrect: boolean
+  selectedAnswer: string
+  isTimeout: boolean
+}
+
 interface GameStore {
   mapType: MapType
   difficulty: Difficulty
@@ -19,9 +26,13 @@ interface GameStore {
   showAnswer: boolean
   zoom: number
   selectedRegion: string | null
+  answerHistory: AnswerRecord[]
+  bestStreakInGame: number
+  hasAnsweredCurrent: boolean
   
   startGame: (mapType: MapType, difficulty: Difficulty, count?: number) => void
   selectAnswer: (targetId: string) => boolean
+  handleTimeout: () => void
   useHint: () => string | null
   nextQuestion: () => void
   setTimeLeft: (time: number) => void
@@ -58,6 +69,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   showAnswer: false,
   zoom: 1,
   selectedRegion: null,
+  answerHistory: [],
+  bestStreakInGame: 0,
+  hasAnsweredCurrent: false,
   
   startGame: (mapType, difficulty, count = 10) => {
     const questions = getRandomQuestions(mapType, difficulty, count)
@@ -75,25 +89,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isCorrect: false,
       gameOver: false,
       selectedRegion: null,
+      answerHistory: [],
+      bestStreakInGame: 0,
+      hasAnsweredCurrent: false,
     })
   },
   
   selectAnswer: (targetId) => {
     const state = get()
     const currentQuestion = state.questions[state.currentIndex]
-    if (!currentQuestion) return false
+    if (!currentQuestion || state.hasAnsweredCurrent) return false
     
     const isCorrect = targetId === currentQuestion.targetId
+    const newStreak = isCorrect ? state.streak + 1 : 0
+    
+    const record: AnswerRecord = {
+      questionId: currentQuestion.id,
+      isCorrect,
+      selectedAnswer: targetId,
+      isTimeout: false,
+    }
     
     set({
       showResult: true,
       isCorrect,
       selectedRegion: targetId,
       score: isCorrect ? state.score + 10 + state.streak * 2 : state.score,
-      streak: isCorrect ? state.streak + 1 : 0,
+      streak: newStreak,
+      bestStreakInGame: Math.max(state.bestStreakInGame, newStreak),
+      answerHistory: [...state.answerHistory, record],
+      hasAnsweredCurrent: true,
     })
     
     return isCorrect
+  },
+  
+  handleTimeout: () => {
+    const state = get()
+    const currentQuestion = state.questions[state.currentIndex]
+    if (!currentQuestion || state.hasAnsweredCurrent) return
+    
+    const record: AnswerRecord = {
+      questionId: currentQuestion.id,
+      isCorrect: false,
+      selectedAnswer: 'timeout',
+      isTimeout: true,
+    }
+    
+    set({
+      showResult: true,
+      isCorrect: false,
+      selectedRegion: 'timeout',
+      streak: 0,
+      answerHistory: [...state.answerHistory, record],
+      hasAnsweredCurrent: true,
+    })
   },
   
   useHint: () => {
@@ -122,6 +172,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hintsUsed: 0,
       timeLeft: DIFFICULTY_TIME[state.difficulty],
       selectedRegion: null,
+      hasAnsweredCurrent: false,
     })
   },
   
@@ -141,6 +192,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     isCorrect: false,
     gameOver: false,
     selectedRegion: null,
+    answerHistory: [],
+    bestStreakInGame: 0,
+    hasAnsweredCurrent: false,
   }),
   
   setTeacherMode: (enabled) => set({ teacherMode: enabled, showAnswer: false, zoom: 1 }),
